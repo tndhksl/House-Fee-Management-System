@@ -4,8 +4,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:ManagementHouseFee.ViewModels"
+        xmlns:views="clr-namespace:ManagementHouseFee.Views"
         mc:Ignorable="d"
-        Title="관리비 매니저" Height="600" Width="1000">
+        Title="관리비 매니저" Height="720" Width="1100">
 
     <Window.DataContext>
         <vm:MainViewModel/>
@@ -39,9 +40,14 @@
                 <Button Content="연도별 비교" Command="{Binding NavigateCommand}" CommandParameter="Yearly"/>
                 <Button Content="월별 비교" Command="{Binding NavigateCommand}" CommandParameter="Monthly"/>
                 <Button Content="항목별 비교" Command="{Binding NavigateCommand}" CommandParameter="Item"/>
+                <Button Content="관리비 불러오기" Command="{Binding NavigateCommand}" CommandParameter="Import"/>
             </StackPanel>
         </Border>
 
-        <ContentControl Grid.Row="1" Content="{Binding CurrentView}" Margin="20"/>
+        <!-- 오른쪽 96px은 챗봇 아이콘 자리로 비워 두어, 아이콘이 화면 내용을 가리지 않게 한다 -->
+        <ContentControl Grid.Row="1" Content="{Binding CurrentView}" Margin="20,20,96,20"/>
+
+        <!-- 챗봇: 현재 화면 위에 겹쳐서 오른쪽 아래에 띄운다 -->
+        <views:ChatWidget Grid.Row="1" DataContext="{Binding Chat}"/>
     </Grid>
 </Window>

@@ -13,6 +13,7 @@ namespace ManagementHouseFee.ViewModels
     {
         private readonly DataService _dataService;
         private List<FeeRecord> _allRecords;
+        private readonly FeeAnalysisService _analysis; // 비교 계산은 서비스에 위임
 
         // 날짜 선택
         public List<int> Years { get; } = new List<int>();
@@ -29,6 +30,7 @@ namespace ManagementHouseFee.ViewModels
         {
             _dataService = new DataService();
             _allRecords = _dataService.Load();
+            _analysis = new FeeAnalysisService(_allRecords);
 
             // 날짜 초기화 (현재 날짜)
             var now = DateTime.Now;
@@ -48,62 +50,63 @@ namespace ManagementHouseFee.ViewModels
         {
             ComparisonList = new ObservableCollection<ComparisonItem>();
 
-            // 1. 선택한 달의 데이터 찾기
-            var currentRecord = _allRecords.FirstOrDefault(r => r.Year == SelectedYear && r.Month == SelectedMonth);
+            // 계산은 FeeAnalysisService가 담당하고, ViewModel은 화면 표시용 문자열·색상만 만든다.
+            var vsPrevMonth = _analysis.CompareWithPrevMonth(SelectedYear, SelectedMonth);
+            var vsPrevYear = _analysis.CompareWithPrevYear(SelectedYear, SelectedMonth);
 
-            // 데이터가 없으면 아무것도 안 함
-            if (currentRecord == null || currentRecord.Items == null) return;
+            // 선택한 달의 데이터가 없으면 아무것도 안 함
+            if (vsPrevMonth == null || vsPrevYear == null) return;
 
-            // 2. 비교 대상 찾기 (지난달, 작년 동월)
-            var prevMonthDate = new DateTime(SelectedYear, SelectedMonth, 1).AddMonths(-1);
-            var prevMonthRecord = _allRecords.FirstOrDefault(r => r.Year == prevMonthDate.Year && r.Month == prevMonthDate.Month);
-
-            var prevYearRecord = _allRecords.FirstOrDefault(r => r.Year == (SelectedYear - 1) && r.Month == SelectedMonth);
-
-            // 3. 각 항목별로 루프 돌면서 계산
-            foreach (var item in currentRecord.Items)
+            for (int i = 0; i < vsPrevMonth.Count; i++)
             {
-                var compItem = new ComparisonItem
+                var m = vsPrevMonth[i];
+                var y = vsPrevYear[i]; // 두 리스트 모두 이번 달 항목 순서 그대로
+
+                ComparisonList.Add(new ComparisonItem
                 {
-                    Name = item.Name,
-                    CurrentAmount = item.Amount
-                };
-
-                // 지난달 비교 로직
-                double prevMonthAmount = prevMonthRecord?.Items.FirstOrDefault(i => i.Name == item.Name)?.Amount ?? 0;
-                compItem.PrevMonthMessage = GetComparisonString(item.Amount, prevMonthAmount, "지난달");
-                compItem.PrevMonthColor = GetColor(item.Amount, prevMonthAmount);
-
-                // 작년 동월 비교 로직
-                double prevYearAmount = prevYearRecord?.Items.FirstOrDefault(i => i.Name == item.Name)?.Amount ?? 0;
-                compItem.PrevYearMessage = GetComparisonString(item.Amount, prevYearAmount, "작년");
-                compItem.PrevYearColor = GetColor(item.Amount, prevYearAmount);
-
-                ComparisonList.Add(compItem);
+                    Name = m.Name,
+                    CurrentAmount = m.Current,
+                    PrevMonthMessage = GetComparisonString(m, "지난달"),
+                    PrevMonthColor = GetColor(m),
+                    PrevYearMessage = GetComparisonString(y, "작년"),
+                    PrevYearColor = GetColor(y)
+                });
             }
         }
 
         // "000원 (00%) 증가" 문자열 만들어주는 함수
-        private string GetComparisonString(double current, double prev, string targetName)
+        private string GetComparisonString(ItemChange c, string targetName)
         {
-            if (prev == 0) return $"{targetName} 데이터 없음";
+            switch (c.Status)
+            {
+                case CompareStatus.NoBaseRecord:
+                    return $"{targetName} 데이터 없음";
+                case CompareStatus.NewItem:
+                    return $"{targetName}에는 없던 항목";
+                case CompareStatus.Same:
+                    return $"{targetName}과 동일";
+            }
 
-            double diff = current - prev;
-            double percent = (diff / prev); // 0.1 = 10%
-
+            double diff = c.Diff ?? 0;
             string sign = diff > 0 ? "증가 🔺" : "감소 🔻";
             string diffText = Math.Abs(diff).ToString("N0");
 
-            if (diff == 0) return $"{targetName}과 동일";
+            // 이전 값이 0원이면 비율을 낼 수 없으므로 금액만 표시
+            if (c.Rate is null)
+                return $"{targetName} 0원 대비 {diffText}원 {sign}";
 
-            return $"{targetName} 대비 {diffText}원 ({percent:P1}) {sign}";
+            return $"{targetName} 대비 {diffText}원 ({c.Rate.Value:P1}) {sign}";
         }
 
-        // 색상 결정 (증가는 빨강, 감소는 파랑)
-        private Brush GetColor(double current, double prev)
+        // 색상 결정 (증가는 빨강, 감소는 파랑, 비교 불가·동일은 회색)
+        private Brush GetColor(ItemChange c)
         {
-            if (prev == 0 || current == prev) return Brushes.Gray;
-            return current > prev ? Brushes.Red : Brushes.Blue;
+            return c.Status switch
+            {
+                CompareStatus.Increased => Brushes.Red,
+                CompareStatus.Decreased => Brushes.Blue,
+                _ => Brushes.Gray
+            };
         }
     }
 }
