@@ -17,6 +17,9 @@ namespace ManagementHouseFee.ViewModels
         [ObservableProperty]
         private ObservableCollection<FeeRecord> _records;
 
+        // 화면 오른쪽 아래 챗봇 (어느 화면에서든 유지)
+        public ChatViewModel Chat { get; } = new ChatViewModel();
+
         // 현재 보여줄 화면 (메인, 추가, 분석 등)
         [ObservableProperty]
         private object _currentView;
@@ -56,6 +59,9 @@ namespace ManagementHouseFee.ViewModels
                     break;
                 case "Item":
                     CurrentView = new ItemComparisonView();
+                    break;
+                case "Import":
+                    CurrentView = new ImportBillView { DataContext = new ImportBillViewModel() };
                     break;
             }
         }
